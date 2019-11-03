@@ -1,12 +1,11 @@
 
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
-
 #include <stdio.h>
-#include "lodepng.c"
+#include ".\lodepng.h"
 #include "wm.h"
 
-const int Wsize = 5;
+const int Wsize = 7;
 
 __device__ unsigned char clamp(float result) {
     if (result < 0) {
@@ -65,7 +64,7 @@ __global__ void threadProcess(int new_height, int new_width, unsigned char* new_
         new_image[4*i] = clamp(r);
         new_image[4*i+1] = clamp(g);
         new_image[4*i+2] = clamp(b);
-        //new_image[4*i+3] = 255; //old_image[4*(old_coord + Wsize/2 + (Wsize/2)*(new_width + pixels_lost)) + 3];
+        new_image[4*i+3] = old_image[4*(old_coord + Wsize/2 + (Wsize/2)*(new_width + pixels_lost)) + 3];
     }
 }
 
@@ -99,9 +98,9 @@ void pre_thread_process(char* input_filename, char* output_filename, int number_
 
     threadProcess << < block_number, threads_per_block >> > (new_height, new_width, cuda_new_image, cuda_image, device_weights, block_number, threads_per_block);
     cudaDeviceSynchronize();
-    cudaMemcpy(new_image, cuda_new_image, (new_width) * (new_width) * 4 * sizeof(unsigned char), cudaMemcpyDeviceToHost);
+    cudaMemcpy(new_image, cuda_new_image, (new_width) * (new_height) * 4 * sizeof(unsigned char), cudaMemcpyDeviceToHost);
 
-    lodepng_encode32_file(output_filename, new_image, new_width, new_width); //make the new image from the data 
+    lodepng_encode32_file(output_filename, new_image, new_width, new_height); //make the new image from the data 
 
     free(image);
     free(new_image);
@@ -111,22 +110,24 @@ void pre_thread_process(char* input_filename, char* output_filename, int number_
 }
 
 
-
-int main()
+int main(int argc, char* argv[])
 {
+    char* input_filename = argv[1];
+    char* output_filename = argv[2];
+
     float* wm = (float*)malloc(Wsize * Wsize * sizeof(float));
 
     // Flattening
     for (int i = 0; i < Wsize; i++) {
         for (int j = 0; j < Wsize; j++) {
             // change argument here for different weight matrices
-            wm[i * Wsize + j] = w5[i][j];
+            wm[i * Wsize + j] = w7[i][j];
             printf("%f \n", wm[i * Wsize + j]);
         }
     }
 
     //sequential_convolve("test.png", "output.png", wm3, 3);
-    pre_thread_process("test.png", "output.png", 128, wm);
+    pre_thread_process(input_filename, output_filename, 128, wm);
 
     return 0;
 }

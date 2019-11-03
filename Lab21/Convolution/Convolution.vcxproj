@@ -80,14 +80,14 @@
     <CudaCompile Include="ckernel.cu" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="lodepng.c" />
+    <ClCompile Include="lodepng.cu" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="lodepng.h" />
     <ClInclude Include="wm.h" />
   </ItemGroup>
   <ItemGroup>
-    <Image Include="output.png" />
+    <Image Include="output5x5.png" />
     <Image Include="test.png" />
     <Image Include="test_convolve_3x3.png" />
     <Image Include="test_convolve_5x5.png" />

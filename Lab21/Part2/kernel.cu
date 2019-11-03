@@ -9,6 +9,7 @@
 #include "Inputs/A_32_2.h"
 #include "Inputs/A_512_2.h"
 #include "Inputs/A_1024_2.h"
+
 #include "Inputs/b_10.h"
 #include "Inputs/b_32.h"
 #include "Inputs/b_512.h"
@@ -17,10 +18,10 @@
 // ------------------------------------------------
 //#include <bits/stdc++.h> 
 using namespace std;
-#define N 4 
+#define N 10 
 #include <iostream>
 
-void getCofactor(float A[N][N], float temp[N][N], int p, int q, int n)
+void getCofactor(double A[N][N], double temp[N][N], int p, int q, int n)
 {
     int i = 0, j = 0;
 
@@ -47,15 +48,15 @@ void getCofactor(float A[N][N], float temp[N][N], int p, int q, int n)
     }
 }
 
-int determinant(float A[N][N], int n)
+double determinant(double A[N][N], int n)
 {
-    int D = 0; // Initialize result 
+    double D = 0; // Initialize result 
 
     //  Base case : if matrix contains single element 
     if (n == 1)
         return A[0][0];
 
-    float temp[N][N]; // To store cofactors 
+    double temp[N][N]; // To store cofactors 
 
     int sign = 1;  // To store sign multiplier 
 
@@ -73,7 +74,7 @@ int determinant(float A[N][N], int n)
     return D;
 }
 
-void adjoint(float A[N][N], float adj[N][N])
+void adjoint(double A[N][N], double adj[N][N])
 {
     if (N == 1)
     {
@@ -83,7 +84,7 @@ void adjoint(float A[N][N], float adj[N][N])
 
     // temp is used to store cofactors of A[][] 
     int sign = 1;
-    float temp[N][N];
+    double temp[N][N];
 
     for (int i = 0; i < N; i++)
     {
@@ -105,10 +106,10 @@ void adjoint(float A[N][N], float adj[N][N])
 
 // Function to calculate and store inverse, returns false if 
 // matrix is singular 
-bool inverse(float A[N][N], float inverse[N*N])
+bool inverse(double A[N][N], double* inverse)
 {
     // Find determinant of A[][] 
-    int det = determinant(A, N);
+    double det = determinant(A, N);
     if (det == 0)
     {
         cout << "Singular matrix, can't find its inverse";
@@ -116,24 +117,32 @@ bool inverse(float A[N][N], float inverse[N*N])
     }
 
     // Find adjoint 
-    float adj[N][N];
+    double adj[N][N];
     adjoint(A, adj);
 
     // Find Inverse using formula "inverse(A) = adj(A)/det(A)" 
     for (int i = 0; i < N; i++)
         for (int j = 0; j < N; j++)
-            inverse[i*N +j] = adj[i][j] / float(det);
+            inverse[i*N +j] = adj[i][j] / double(det);
 
     return true;
 }
 
-void displayFlat(float A[N*N])
+void displayFlat(double A[N*N])
 {
     for (int i = 0; i < N; i++)
     {
         for (int j = 0; j < N; j++)
             cout << A[i * N + j] << " ";
         cout << endl;
+    }
+}
+
+void displayVector(float A[N])
+{
+    for (int i = 0; i < N; i++)
+    {
+        cout << A[N] << " ";
     }
 }
 
@@ -149,72 +158,101 @@ void display(float A[N][N])
 
 // -------------------------------------------------------------------------------------
 
-__global__ void gpu_process(unsigned char* input_image, unsigned char* output_image, unsigned width, unsigned height, int num_threads, int num_blocks)
+__global__ void gpu_process(float* x_temp, float* d_a, float* d_b, int num_threads, int num_blocks)
 {
+    int start, end;
+    
+    int thread_size=(N*N)/(num_blocks * num_threads);    
+    if (thread_size == 0) thread_size=1;
 
+    start = thread_size* (blockIdx.x * blockDim.x + threadIdx.x);
+    end = start+ thread_size;
+
+    for (int i = start; i < end; i++)
+    {
+        x_temp[i]= d_b[i/N]*d_a[i];
+    }
 }
 
-double run_process(int num_threads, int width, int height, unsigned char* new_image, char* output_filename, unsigned char* d_image) {
+__global__ void sum_temp(float* x_temp, float* result, int num_threads, int num_blocks)
+{
+    int start, end;
+
+    int thread_size = (N) / (num_blocks * num_threads);
+    if (thread_size == 0) thread_size = 1;
+
+    start = thread_size * (blockIdx.x * blockDim.x + threadIdx.x);
+    end = start + thread_size;
+
+    for (int i = start; i < end; i++)
+    {
+        for (int j = 0; j < N; j++)
+        {
+            result[i] += x_temp[i + j*N];
+        }
+    }
+}
+
+double run_process(int num_threads, float* d_a, float* d_b, float* x_temp, float* x) {
     int block_number = num_threads / 1024 + 1;
     int threads_per_block = num_threads / block_number;
 
     double time_spent = 0.0;
     clock_t begin = clock();
-    gpu_process << <block_number, threads_per_block >> > (d_image, new_image, width, height, threads_per_block, block_number);
+    gpu_process << <block_number, threads_per_block >> > (x_temp, d_a, d_b, threads_per_block, block_number);
     cudaDeviceSynchronize();
-    //lodepng_encode32_file(output_filename, new_image, width / 2, height / 2);
+    sum_temp<<<block_number, threads_per_block >>>(x_temp, x, threads_per_block, block_number);
+    cudaDeviceSynchronize();
     clock_t end = clock();
 
     time_spent += (double)(end - begin) / CLOCKS_PER_SEC;
     return time_spent;
 }
 
-void pre_process(float** x, float** d_A, float** d_B, float* A, float* B) {
+void pre_process(float** x_temp, float** x, float** d_A, float** d_B, float* A, float* B) {
     unsigned error;
     
     // allocate and copy into device
-    size_t matrixAsize = (size_t)((N) * (N) * 4 * sizeof(float));
+    size_t matrixAsize = (size_t) (N * N * sizeof(float));
     size_t matrixBsize = (size_t) (N * sizeof(float));
 
     cudaMalloc((void**) & *d_A, matrixAsize);
     cudaMalloc((void**) & *d_B, matrixBsize);
+    cudaMalloc((void**) & *x_temp, matrixAsize);
 
     cudaMemcpy(*d_A, A, matrixAsize, cudaMemcpyHostToDevice);
     cudaMemcpy(*d_B, B, matrixBsize, cudaMemcpyHostToDevice);
 
     // allocate shared memory for x
-    cudaMallocManaged(x, matrixAsize);
+    cudaMallocManaged(x, matrixBsize);
 }
 
 int main()
 {
-    float A[N][N] = { {5, -2, 2, 7},
-                        {1, 0, 0, 3},
-                        {-3, 1, 5, 0},
-                        {3, -1, -9, 4} };
+    //float A[N][N];
 
-    float adj[N][N];  // To store adjoint of A[][] 
+    //std::copy(&A_10[N][N], &A[0][0] + N * N, &A[0][0]);
+    //display(A);
 
-    float inv_A[N*N]; // To store inverse of A[][] 
+    double adj[N][N];  // To store adjoint of A[][] 
 
-    cout << "Input matrix is :\n";
-    display(A);
-
-    cout << "\nThe Adjoint is :\n";
-    adjoint(A, adj);
-    display(adj);
+    double inv_A[N*N]; // To store inverse of A[][] 
+    
+    printf("determinant: %f",determinant(A_10,N));
 
     cout << "\nThe Inverse is :\n";
-    if (inverse(A, inv_A))
+    if (inverse(A_10, inv_A))
         displayFlat(inv_A);
 
+    int num_threads = 128;
+    float* x_temp, *x, *d_A, *d_B; 
     
-    float* x, *d_A, *d_B; 
+    pre_process(&x_temp, &x, &d_A, &d_B, inv_A, b_10);
     
-    pre_process(&x, &d_A, &d_B, inv_A, b_10);
+    run_process(num_threads, d_A, d_B, x_temp, x);
     
-
-
+    cout << "\n X is: \n";
+    displayVector(x);
     return 0;
 }
 

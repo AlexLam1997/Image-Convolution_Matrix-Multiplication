@@ -118,30 +118,52 @@ __device__ unsigned char qpu_convolve(int current_pixel, int channel, int old_wi
     return clamp(result);
 }
 
-__global__ void threadProcess(int new_height, int new_width, unsigned char* new_image, unsigned char* image, int dim_of_weight_matrix, float* wm, int num_blocks, int num_threads) {
-    int start;
-    int end;
+__global__ void threadProcess(int new_height, int new_width, unsigned char* new_image, unsigned char* old_image, float* weights, int numBlocks, int numThreads)
+{
+    int start, end;
     int total_size = new_width * new_height;
-    int thread_size = total_size / (num_threads * num_blocks);
-    int pixels_lost = (dim_of_weight_matrix / 2) * 2;
+    int thread_size = total_size / (numThreads * numBlocks);
+    int pixels_lost = (Wsize / 2) * 2;
+
     start = thread_size * (blockIdx.x * blockDim.x + threadIdx.x);
     end = start + thread_size;
-    
-    for (int i = start; i < end; i++) {
-        int y = i / (new_width);
-        int x = i % (new_width);
 
-        //printf("X: %d \n", x);
-        //printf("Y: %d \n", y);
-        int current_pixel_in_old_image = get_original_pixel(x, y, new_width, pixels_lost);
-        new_image[4 * i + 0] = qpu_convolve(current_pixel_in_old_image, 0, new_width + pixels_lost, new_height + pixels_lost, image, wm);
+    //printf("Start: %d \t End: %d \n", start, end);
 
-        new_image[4 * i + 1] = qpu_convolve(current_pixel_in_old_image, 1, new_width + pixels_lost, new_height + pixels_lost, image, wm);
+    for (int i = start; i < end; i++)
+    {
+        float r, g, b;
+        r = 0;
+        g = 0;
+        b = 0;
 
-        new_image[4 * i + 2] = qpu_convolve(current_pixel_in_old_image, 2, new_width + pixels_lost, new_height + pixels_lost, image, wm);
+        int x_new = i % new_width;
+        int y_new = i / new_width;
 
-        new_image[4 * i + 3] = image[4*current_pixel_in_old_image+3];
-        //(unsigned char)255; //image[current_pixel_in_old_image +3] // full opacity
+        //printf("X: %d \t Y: %d \n", x_new, y_new);
+
+        int old_coord = y_new * (new_width + pixels_lost) + x_new;
+        printf("old_coord: %d \n", old_coord);
+
+        // height
+        for (int wY = 0; wY < Wsize; wY++)
+        {
+            // width
+            for (int wX = 0; wX < Wsize; wX++)
+            {
+                float weight = weights[wX + wY * Wsize];
+                int pixel_index = old_coord + wY * (new_width + pixels_lost) + wX;
+                // printf("Pixel index: %d \n", pixel_index);
+                r += old_image[4 * pixel_index] * weight;
+                g += old_image[4 * pixel_index + 1] * weight;
+                b += old_image[4 * pixel_index + 2] * weight;
+            }
+        }
+
+        new_image[4 * i] = clamp(r);
+        new_image[4 * i + 1] = clamp(g);
+        new_image[4 * i + 2] = clamp(b);
+        new_image[4*i+3] = 255; //old_image[4*(old_coord + Wsize/2 + (Wsize/2)*(new_width + pixels_lost)) + 3];
     }
 }
 
@@ -177,7 +199,7 @@ void pre_thread_process(char* input_filename, char* output_filename, int number_
 
     //printf("%d \n", block_number);
     //printf("%d \n", threads_per_block);
-    threadProcess << < block_number, threads_per_block >> > (height - lost_pixels, width - lost_pixels, cuda_new_image, cuda_image, dim_of_weight_matrix, device_weights, block_number, threads_per_block);
+    threadProcess << < block_number, threads_per_block >> > (height - lost_pixels, width - lost_pixels, cuda_new_image, cuda_image, device_weights, block_number, threads_per_block);
 
     cudaMemcpy(new_image, cuda_new_image, (width - lost_pixels) * (height - lost_pixels) * 4 * sizeof(unsigned char), cudaMemcpyDeviceToHost);
     //for (int i = 0; i < 100; i++) {

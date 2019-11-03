@@ -275,7 +275,9 @@ int main()
     double inv_A[N*N]; 
     double* x_temp, * x, * d_A, * d_B;
 
+	// Replace this line by taking inverse from header file
     inverse(A_10, inv_A);
+
     pre_process(&x_temp, &x, &d_A, &d_B, inv_A, b_10);
 
 	cout << "The input matrix is: \n";
@@ -283,16 +285,23 @@ int main()
 	cout << "\nThe inverse is: \n";
 	displayFlat(inv_A);
     
-	int max_thread_power = 11;
+	// RUN FOR ALL OTHER SIZES WHERE TIMING INFO NOT NEEDED
+	int number_of_threads = 128; 
+	double duration = run_process(number_of_threads, d_A, d_B, x_temp, x);
+	cout << "\nX is: \n";
+	displayVector(x);
 
-	printf("\nMatrix Dimension: %d \n", N);
-	for (int i = 0; i <= max_thread_power; i++) {
-		int number_of_threads = pow(2, i);
-		double duration = run_process(number_of_threads, d_A, d_B, x_temp, x);
-		cout << "Number of threads: " << number_of_threads << "\t Run time: " << scientific << duration;
-		cout << "\nX is: \n";
-		displayVector(x);
-	}
+	// ONLY RUN FOR 1024X1024 matrix
+	// Run through matrix multiplication with numthreads 
+	//int max_thread_power = 11;
+	//printf("\nMatrix Dimension: %d \n", N);
+	//for (int i = 0; i <= max_thread_power; i++) {
+	//	int number_of_threads = pow(2, i);
+	//	double duration = run_process(number_of_threads, d_A, d_B, x_temp, x);
+	//	cout << "Number of threads: " << number_of_threads << "\t Run time: " << scientific << duration;
+	//	cout << "\nX is: \n";
+	//	displayVector(x);
+	//}
     
     return 0;
 }

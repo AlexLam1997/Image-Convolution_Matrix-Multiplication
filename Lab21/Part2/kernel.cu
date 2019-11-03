@@ -17,7 +17,8 @@
 
 // ------------------------------------------------
 //#include <bits/stdc++.h> 
-#define N 32 
+
+const int N = 10; 
 
 using namespace std;
 #include <iostream>
@@ -139,27 +140,28 @@ void displayFlat(double A[N*N])
     }
 }
 
-void cudadisplayFlat(double A[N * N])
+__global__ void cudadisplayFlat(double A[N * N])
 {
-    for (int i = 0; i < N; i++)
-    {
-        for (int j = 0; j < N; j++)
-            cout << A[i * N + j] << " ";
-        cout << endl;
-    }
+	printf("\nThe inverse is: \n");
+	for (int i = 0; i < N; i++)
+	{
+		for (int j = 0; j < N; j++)
+			printf("%f \n", A[i * N + j]);
+	}
 }
 
 void displayVector(double A[N])
 {
+	cout.precision(17);
     for (int i = 0; i < N; i++)
     {
-        printf("%f ", A[i]);
+        cout<< A[i] << fixed << endl;
     }
 }
 
 void display(double A[N][N])
 {
-    for (int i = 0; i < N*N; i++)
+    for (int i = 0; i < N; i++)
     {
         for (int j = 0; j < N; j++)
             cout << A[i][j] << " ";
@@ -181,15 +183,20 @@ __global__ void gpu_process(double* x_temp, double* d_a, double* d_b, int num_th
 
     for (int i = start; i < end; i++)
     {
-        x_temp[i]= d_b[i/N]*d_a[i];
+		x_temp[i] = d_a[i] * d_b[i % N];
     }
 }
 
 __global__ void sum_temp(double* x_temp, double* result, int num_threads, int num_blocks)
 {
-    int start, end;
+	// reinit results
+	for (int j = 0; j < N; j++)
+	{
+		result[j] = 0;
+	}
 
-    int thread_size = (N) / (num_blocks * num_threads);
+    int start, end;
+    int thread_size = N / (num_blocks * num_threads);
     if (thread_size == 0) thread_size = 1;
 
     start = thread_size * (blockIdx.x * blockDim.x + threadIdx.x);
@@ -198,37 +205,45 @@ __global__ void sum_temp(double* x_temp, double* result, int num_threads, int nu
     for (int i = start; i < end; i++)
     {
         for (int j = 0; j < N; j++)
-        {
-            result[i] += x_temp[i + j*N];
+        {	
+			// sum up rows 
+            result[i] += x_temp[i*N + j];
         }
     }
 }
 
-// void serial_sum_temp(double* x_temp, double* result)
-//{
-//
-//    for (int i = 0; i < N; i++)
-//    { 
-//        for (int j = 0; j < N; j++)
-//        {
-//            result[i] += x_temp[j*N + i];
-//        }
-//    }
-//}
+ void serial_sum_temp(double* x_temp, double* result)
+{
+	 // reinit results
+	 for (int j = 0; j < N; j++)
+	 {
+		 result[j] = 0;
+	 }
+
+    for (int i = 0; i < N; i++)
+    { 
+        for (int j = 0; j < N; j++)
+        {
+			result[i] += x_temp[i * N + j];
+		}
+    }
+}
 
 double run_process(int num_threads, double* d_a, double* d_b, double* x_temp, double* x) {
     int block_number = num_threads / 1024 + 1;
     int threads_per_block = num_threads / block_number;
-
     double time_spent = 0.0;
+
     clock_t begin = clock();
     gpu_process << <block_number, threads_per_block >> > (x_temp, d_a, d_b, threads_per_block, block_number);
     cudaDeviceSynchronize();
-    
-    cout << "\n X temp is: \n";
-    displayFlat(x_temp);
+
+	//cout << "Temp: \n";
+	//displayFlat(x_temp);
 
     sum_temp<<<block_number, threads_per_block >>>(x_temp, x, threads_per_block, block_number);
+	//serial_sum_temp(x_temp, x);
+
     cudaDeviceSynchronize();
     clock_t end = clock();
 
@@ -251,28 +266,34 @@ void pre_process(double** x_temp, double** x, double** d_A, double** d_B, double
     cudaMemcpy(*d_B, B, matrixBsize, cudaMemcpyHostToDevice);
 
     // allocate shared memory for x
-    cudaMallocManaged(x, matrixBsize);
-    
+    cudaMallocManaged(x, matrixBsize); 
 }
 
 
 int main()
 {
     double inv_A[N*N]; 
-    
-    int num_threads = 10;
     double* x_temp, * x, * d_A, * d_B;
 
-    inverse(A_32, inv_A);
-    cout << "The inverse is: \n";
-    displayFlat(inv_A);
+    inverse(A_10, inv_A);
+    pre_process(&x_temp, &x, &d_A, &d_B, inv_A, b_10);
 
-    pre_process(&x_temp, &x, &d_A, &d_B, inv_A, b_32);
+	cout << "The input matrix is: \n";
+	display(A_10);
+	cout << "\nThe inverse is: \n";
+	displayFlat(inv_A);
     
-    run_process(num_threads, d_A, d_B, x_temp, x);
+	int max_thread_power = 11;
+
+	printf("\nMatrix Dimension: %d \n", N);
+	for (int i = 0; i <= max_thread_power; i++) {
+		int number_of_threads = pow(2, i);
+		double duration = run_process(number_of_threads, d_A, d_B, x_temp, x);
+		cout << "Number of threads: " << number_of_threads << "\t Run time: " << scientific << duration;
+		cout << "\nX is: \n";
+		displayVector(x);
+	}
     
-    cout << "\n X is: \n";
-    displayVector(x);
     return 0;
 }
 

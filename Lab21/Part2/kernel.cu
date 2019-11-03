@@ -6,19 +6,22 @@
 #include <time.h>
 
 #include "Inputs/A_10_2.h"
-#include "Inputs/A_32_2.h"
-#include "Inputs/A_512_2.h"
-#include "Inputs/A_1024_2.h"
+#include "Inputs/A_32.h"
+#include "Inputs/A_512.h"
+#include "Inputs/A_1024.h"
 
 #include "Inputs/b_10.h"
 #include "Inputs/b_32.h"
 #include "Inputs/b_512.h"
 #include "Inputs/b_1024.h"
+#include "Inputs/X_32.h"
+#include "Inputs/X_512.h"
+#include "Inputs/X_1024.h"
 
 // ------------------------------------------------
 //#include <bits/stdc++.h> 
 
-const int N = 10; 
+const int N = 1024; 
 
 using namespace std;
 #include <iostream>
@@ -180,11 +183,19 @@ __global__ void gpu_process(double* x_temp, double* d_a, double* d_b, int num_th
 
     start = thread_size* (blockIdx.x * blockDim.x + threadIdx.x);
     end = start+ thread_size;
+	if (end > (N * N)) {
+		end = N * N;
+	}
+	
+	for (int i = start; i < end; i++)
+	{
+		int x = i % N;
+		int y = i / N;
 
-    for (int i = start; i < end; i++)
-    {
-		x_temp[i] = d_a[i] * d_b[i % N];
-    }
+
+		x_temp[i] = d_a[i] * d_b[y];
+	}
+	
 }
 
 __global__ void sum_temp(double* x_temp, double* result, int num_threads, int num_blocks)
@@ -201,13 +212,15 @@ __global__ void sum_temp(double* x_temp, double* result, int num_threads, int nu
 
     start = thread_size * (blockIdx.x * blockDim.x + threadIdx.x);
     end = start + thread_size;
-
+	if (end > (N)) {
+		end = N;
+	}
     for (int i = start; i < end; i++)
     {
         for (int j = 0; j < N; j++)
         {	
 			// sum up rows 
-            result[i] += x_temp[i*N + j];
+            result[i] += x_temp[i + j*N];
         }
     }
 }
@@ -269,39 +282,52 @@ void pre_process(double** x_temp, double** x, double** d_A, double** d_B, double
     cudaMallocManaged(x, matrixBsize); 
 }
 
+void subtract(double * output, double A[N],double B[N]){
+	double* result = output;
+
+	for (int i = 0; i < N; i++) {
+		result[i] = A[i] - B[i];
+	}
+
+}
 
 int main()
 {
-    double inv_A[N*N]; 
+    //double inv_A[N*N]; 
     double* x_temp, * x, * d_A, * d_B;
 
 	// Replace this line by taking inverse from header file
-    inverse(A_10, inv_A);
+   // inverse(A_10, inv_A);
 
-    pre_process(&x_temp, &x, &d_A, &d_B, inv_A, b_10);
+    pre_process(&x_temp, &x, &d_A, &d_B, A_1024, X_1024);
 
 	cout << "The input matrix is: \n";
-	display(A_10);
+	//display(A_32);
 	cout << "\nThe inverse is: \n";
-	displayFlat(inv_A);
+	//displayFlat(A_32);
     
 	// RUN FOR ALL OTHER SIZES WHERE TIMING INFO NOT NEEDED
 	int number_of_threads = 128; 
 	double duration = run_process(number_of_threads, d_A, d_B, x_temp, x);
-	cout << "\nX is: \n";
+	//cout << "\nX is: \n";
+	cout << "\nA*x is: \n";
 	displayVector(x);
+	double* difference = (double *)malloc(N * sizeof(double));
+	subtract(difference, x, b_1024);
+	cout << "\nA*x-B is: \n";
+	displayVector(difference);
 
 	// ONLY RUN FOR 1024X1024 matrix
-	// Run through matrix multiplication with numthreads 
-	//int max_thread_power = 11;
-	//printf("\nMatrix Dimension: %d \n", N);
-	//for (int i = 0; i <= max_thread_power; i++) {
-	//	int number_of_threads = pow(2, i);
-	//	double duration = run_process(number_of_threads, d_A, d_B, x_temp, x);
-	//	cout << "Number of threads: " << number_of_threads << "\t Run time: " << scientific << duration;
-	//	cout << "\nX is: \n";
-	//	displayVector(x);
-	//}
+	 //Run through matrix multiplication with numthreads 
+	int max_thread_power = 11;
+	printf("\nMatrix Dimension: %d \n", N);
+	for (int i = 0; i <= max_thread_power; i++) {
+		int number_of_threads = pow(2, i);
+		double duration = run_process(number_of_threads, d_A, d_B, x_temp, x);
+		cout << "\n Number of threads: " << number_of_threads << "\t Run time: " << scientific << duration;
+		cout << "\nX is: \n";
+		displayVector(x);
+	}
     
     return 0;
 }

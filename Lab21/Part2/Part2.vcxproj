@@ -99,6 +99,9 @@
     <ClInclude Include="Inputs\b_32_2.h" />
     <ClInclude Include="Inputs\b_512.h" />
     <ClInclude Include="Inputs\b_512_2.h" />
+    <ClInclude Include="Inputs\X_1024.h" />
+    <ClInclude Include="Inputs\X_32.h" />
+    <ClInclude Include="Inputs\X_512.h" />
     <ClInclude Include="lodepng.h" />
     <ClInclude Include="wm.h" />
   </ItemGroup>

@@ -17,8 +17,9 @@
 
 // ------------------------------------------------
 //#include <bits/stdc++.h> 
+#define N 32 
+
 using namespace std;
-#define N 10 
 #include <iostream>
 
 void getCofactor(double A[N][N], double temp[N][N], int p, int q, int n)
@@ -203,17 +204,17 @@ __global__ void sum_temp(double* x_temp, double* result, int num_threads, int nu
     }
 }
 
- void serial_sum_temp(double* x_temp, double* result)
-{
-
-    for (int i = 0; i < N; i++)
-    { 
-        for (int j = 0; j < N; j++)
-        {
-            result[i] += x_temp[j*N + i];
-        }
-    }
-}
+// void serial_sum_temp(double* x_temp, double* result)
+//{
+//
+//    for (int i = 0; i < N; i++)
+//    { 
+//        for (int j = 0; j < N; j++)
+//        {
+//            result[i] += x_temp[j*N + i];
+//        }
+//    }
+//}
 
 double run_process(int num_threads, double* d_a, double* d_b, double* x_temp, double* x) {
     int block_number = num_threads / 1024 + 1;
@@ -227,8 +228,7 @@ double run_process(int num_threads, double* d_a, double* d_b, double* x_temp, do
     cout << "\n X temp is: \n";
     displayFlat(x_temp);
 
-   //sum_temp<<<block_number, threads_per_block >>>(x_temp, x, threads_per_block, block_number);
-    serial_sum_temp(x_temp,x);
+    sum_temp<<<block_number, threads_per_block >>>(x_temp, x, threads_per_block, block_number);
     cudaDeviceSynchronize();
     clock_t end = clock();
 
@@ -255,22 +255,19 @@ void pre_process(double** x_temp, double** x, double** d_A, double** d_B, double
     
 }
 
+
 int main()
 {
-    double adj[N][N];  // To store adjoint of A[][] 
-
-    double inv_A[N*N]; // To store inverse of A[][] 
+    double inv_A[N*N]; 
     
-    printf("determinant: %f",determinant(A_10,N));
-
-    cout << "\nThe Inverse is :\n";
-    if (inverse(A_10, inv_A))
-        displayFlat(inv_A);
-
     int num_threads = 10;
-    double* x_temp, *x, *d_A, *d_B; 
-    
-    pre_process(&x_temp, &x, &d_A, &d_B, inv_A, b_10);
+    double* x_temp, * x, * d_A, * d_B;
+
+    inverse(A_32, inv_A);
+    cout << "The inverse is: \n";
+    displayFlat(inv_A);
+
+    pre_process(&x_temp, &x, &d_A, &d_B, inv_A, b_32);
     
     run_process(num_threads, d_A, d_B, x_temp, x);
     

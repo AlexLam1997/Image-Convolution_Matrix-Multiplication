@@ -25,6 +25,9 @@
     <ClInclude Include="Inputs\b_512_2.h" />
     <ClInclude Include="lodepng.h" />
     <ClInclude Include="wm.h" />
+    <ClInclude Include="Inputs\X_32.h" />
+    <ClInclude Include="Inputs\X_512.h" />
+    <ClInclude Include="Inputs\X_1024.h" />
   </ItemGroup>
   <ItemGroup>
     <Image Include="test.png" />

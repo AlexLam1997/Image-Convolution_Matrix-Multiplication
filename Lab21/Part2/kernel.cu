@@ -138,15 +138,25 @@ void displayFlat(double A[N*N])
     }
 }
 
-void displayVector(float A[N])
+void cudadisplayFlat(double A[N * N])
 {
     for (int i = 0; i < N; i++)
     {
-        cout << A[N] << " ";
+        for (int j = 0; j < N; j++)
+            cout << A[i * N + j] << " ";
+        cout << endl;
     }
 }
 
-void display(float A[N][N])
+void displayVector(double A[N])
+{
+    for (int i = 0; i < N; i++)
+    {
+        printf("%f ", A[i]);
+    }
+}
+
+void display(double A[N][N])
 {
     for (int i = 0; i < N*N; i++)
     {
@@ -158,7 +168,7 @@ void display(float A[N][N])
 
 // -------------------------------------------------------------------------------------
 
-__global__ void gpu_process(float* x_temp, float* d_a, float* d_b, int num_threads, int num_blocks)
+__global__ void gpu_process(double* x_temp, double* d_a, double* d_b, int num_threads, int num_blocks)
 {
     int start, end;
     
@@ -174,7 +184,7 @@ __global__ void gpu_process(float* x_temp, float* d_a, float* d_b, int num_threa
     }
 }
 
-__global__ void sum_temp(float* x_temp, float* result, int num_threads, int num_blocks)
+__global__ void sum_temp(double* x_temp, double* result, int num_threads, int num_blocks)
 {
     int start, end;
 
@@ -193,7 +203,19 @@ __global__ void sum_temp(float* x_temp, float* result, int num_threads, int num_
     }
 }
 
-double run_process(int num_threads, float* d_a, float* d_b, float* x_temp, float* x) {
+ void serial_sum_temp(double* x_temp, double* result)
+{
+
+    for (int i = 0; i < N; i++)
+    { 
+        for (int j = 0; j < N; j++)
+        {
+            result[i] += x_temp[j*N + i];
+        }
+    }
+}
+
+double run_process(int num_threads, double* d_a, double* d_b, double* x_temp, double* x) {
     int block_number = num_threads / 1024 + 1;
     int threads_per_block = num_threads / block_number;
 
@@ -201,7 +223,12 @@ double run_process(int num_threads, float* d_a, float* d_b, float* x_temp, float
     clock_t begin = clock();
     gpu_process << <block_number, threads_per_block >> > (x_temp, d_a, d_b, threads_per_block, block_number);
     cudaDeviceSynchronize();
-    sum_temp<<<block_number, threads_per_block >>>(x_temp, x, threads_per_block, block_number);
+    
+    cout << "\n X temp is: \n";
+    displayFlat(x_temp);
+
+   //sum_temp<<<block_number, threads_per_block >>>(x_temp, x, threads_per_block, block_number);
+    serial_sum_temp(x_temp,x);
     cudaDeviceSynchronize();
     clock_t end = clock();
 
@@ -209,31 +236,27 @@ double run_process(int num_threads, float* d_a, float* d_b, float* x_temp, float
     return time_spent;
 }
 
-void pre_process(float** x_temp, float** x, float** d_A, float** d_B, float* A, float* B) {
+void pre_process(double** x_temp, double** x, double** d_A, double** d_B, double* A, double* B) {
     unsigned error;
     
     // allocate and copy into device
-    size_t matrixAsize = (size_t) (N * N * sizeof(float));
-    size_t matrixBsize = (size_t) (N * sizeof(float));
+    size_t matrixAsize = (size_t) (N * N * sizeof(double));
+    size_t matrixBsize = (size_t) (N * sizeof(double));
 
     cudaMalloc((void**) & *d_A, matrixAsize);
     cudaMalloc((void**) & *d_B, matrixBsize);
-    cudaMalloc((void**) & *x_temp, matrixAsize);
+    cudaMallocManaged((void**) & *x_temp, matrixAsize);
 
     cudaMemcpy(*d_A, A, matrixAsize, cudaMemcpyHostToDevice);
     cudaMemcpy(*d_B, B, matrixBsize, cudaMemcpyHostToDevice);
 
     // allocate shared memory for x
     cudaMallocManaged(x, matrixBsize);
+    
 }
 
 int main()
 {
-    //float A[N][N];
-
-    //std::copy(&A_10[N][N], &A[0][0] + N * N, &A[0][0]);
-    //display(A);
-
     double adj[N][N];  // To store adjoint of A[][] 
 
     double inv_A[N*N]; // To store inverse of A[][] 
@@ -244,8 +267,8 @@ int main()
     if (inverse(A_10, inv_A))
         displayFlat(inv_A);
 
-    int num_threads = 128;
-    float* x_temp, *x, *d_A, *d_B; 
+    int num_threads = 10;
+    double* x_temp, *x, *d_A, *d_B; 
     
     pre_process(&x_temp, &x, &d_A, &d_B, inv_A, b_10);
     

@@ -28,8 +28,6 @@ __global__ void gpu_process(float* x_temp, float* d_a, float* d_b, int num_threa
 void pre_process(float** x_temp, float** x, float** d_A, float** d_B, float* A, float* B);
 float run_process(int num_threads, float* d_a, float* d_b, float* x_temp, float* x);
 void displayVector(float A[N]);
-void display(float A[N][N]);
-__global__ void cudadisplayFlat(float A[N * N]);
 void displayFlat(float A[N * N]);
 bool inverse(float A[N][N], float* inverse);
 void adjoint(float A[N][N], float adj[N][N]);
@@ -211,7 +209,6 @@ void pre_process(float** x_temp, float** x, float** d_A, float** d_B, float* A, 
 
 void subtract(float* output, float A[N], float B[N])
 {
-
 	for (int i = 0; i < N; i++) {
 		output[i] = A[i] - B[i];
 	}
@@ -219,11 +216,10 @@ void subtract(float* output, float A[N], float B[N])
 
 bool inverse(float A[N][N], float* inverse)
 {
-	// Find determinant of A[][] 
 	float det = determinant(A, N);
 	if (det == 0)
 	{
-		cout << "Singular matrix, can't find its inverse";
+		cout << "No inverse";
 		return false;
 	}
 
@@ -332,16 +328,6 @@ void displayFlat(float A[N * N])
 	}
 }
 
-__global__ void cudadisplayFlat(float A[N * N])
-{
-	printf("\nThe inverse is: \n");
-	for (int i = 0; i < N; i++)
-	{
-		for (int j = 0; j < N; j++)
-			printf("%f \n", A[i * N + j]);
-	}
-}
-
 void displayVector(float A[N])
 {
 	cout.precision(17);
@@ -351,13 +337,4 @@ void displayVector(float A[N])
 	}
 }
 
-void display(float A[N][N])
-{
-	for (int i = 0; i < N; i++)
-	{
-		for (int j = 0; j < N; j++)
-			cout << A[i][j] << " ";
-		cout << endl;
-	}
-}
 

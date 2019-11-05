@@ -5,7 +5,11 @@
 #include ".\lodepng.h"
 #include "wm.h"
 
-const int Wsize = 7;
+using namespace std;
+#include <iostream>
+#include <time.h>
+
+const int Wsize = 3;
 
 __device__ unsigned char clamp(float result) {
     if (result < 0) {
@@ -44,7 +48,6 @@ __global__ void threadProcess(int new_height, int new_width, unsigned char* new_
         //printf("X: %d \t Y: %d \n", x_new, y_new);
         
         int old_coord = y_new*(new_width + pixels_lost) + x_new;
-        printf("old_coord: %d \n", old_coord);
 
         // height
         for (int wY = 0; wY < Wsize; wY++)
@@ -93,14 +96,23 @@ void pre_thread_process(char* input_filename, char* output_filename, int number_
 
     cudaMalloc((void**)& cuda_new_image, new_width * new_height * 4 * sizeof(unsigned char));
 
-    int block_number = number_threads / 1024 + 1;
-    int threads_per_block = number_threads / block_number;
+	int max_thread_power = 11;
+	//for (int i = 0; i <= max_thread_power; i++)
+	//{
+		int number_of_threads =128;
+		int block_number = number_of_threads / 1024 + 1;
+		int threads_per_block = number_of_threads / block_number;
 
-    threadProcess << < block_number, threads_per_block >> > (new_height, new_width, cuda_new_image, cuda_image, device_weights, block_number, threads_per_block);
-    cudaDeviceSynchronize();
-    cudaMemcpy(new_image, cuda_new_image, (new_width) * (new_height) * 4 * sizeof(unsigned char), cudaMemcpyDeviceToHost);
+		clock_t begin = clock();
 
-    lodepng_encode32_file(output_filename, new_image, new_width, new_height); //make the new image from the data 
+		threadProcess << < block_number, threads_per_block >> > (new_height, new_width, cuda_new_image, cuda_image, device_weights, block_number, threads_per_block);
+		cudaDeviceSynchronize();
+		cudaMemcpy(new_image, cuda_new_image, (new_width) * (new_height) * 4 * sizeof(unsigned char), cudaMemcpyDeviceToHost);
+		lodepng_encode32_file(output_filename, new_image, new_width, new_height); //make the new image from the data 
+		float time_spent = (float)(clock() - begin) / CLOCKS_PER_SEC;
+
+		cout << "\n Number of threads: " << number_of_threads << "\t Run time: " << scientific << time_spent;
+	//}
 
     free(image);
     free(new_image);
@@ -112,8 +124,8 @@ void pre_thread_process(char* input_filename, char* output_filename, int number_
 
 int main(int argc, char* argv[])
 {
-    char* input_filename = argv[1];
-    char* output_filename = argv[2];
+	char* input_filename = "Input2.png"; //argv[1];
+	char* output_filename = "output.png"; // argv[2];
 
     float* wm = (float*)malloc(Wsize * Wsize * sizeof(float));
 
@@ -121,13 +133,12 @@ int main(int argc, char* argv[])
     for (int i = 0; i < Wsize; i++) {
         for (int j = 0; j < Wsize; j++) {
             // change argument here for different weight matrices
-            wm[i * Wsize + j] = w7[i][j];
-            printf("%f \n", wm[i * Wsize + j]);
+            wm[i * Wsize + j] = w3[i][j];
         }
     }
 
-    //sequential_convolve("test.png", "output.png", wm3, 3);
     pre_thread_process(input_filename, output_filename, 128, wm);
 
     return 0;
 }
+

@@ -87,7 +87,9 @@
     <ClInclude Include="wm.h" />
   </ItemGroup>
   <ItemGroup>
+    <Image Include="output3x3.png" />
     <Image Include="output5x5.png" />
+    <Image Include="output7x7.png" />
     <Image Include="test.png" />
     <Image Include="test_convolve_3x3.png" />
     <Image Include="test_convolve_5x5.png" />

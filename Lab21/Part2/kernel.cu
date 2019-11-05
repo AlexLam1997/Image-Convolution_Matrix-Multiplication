@@ -18,110 +18,119 @@
 #include "Inputs/X_512.h"
 #include "Inputs/X_1024.h"
 
-// ------------------------------------------------
 using namespace std;
 #include <iostream>
 
-__global__ void gpu_process(float* x_temp, float* d_a, float* d_b, int num_threads, int num_blocks);
-__global__ void sum_temp(float* x_temp, float* result, int num_threads, int num_blocks);
-void pre_process(float** x_temp, float** x, float** d_A, float** d_B, float* A, float* B);
-float run_process(int num_threads, float* d_a, float* d_b, float* x_temp, float* x);
+__global__ void gpu_process(double* x_temp, double* d_a, double* d_b, int num_threads, int num_blocks);
+__global__ void sum_temp(double* x_temp, double* result, int num_threads, int num_blocks);
+void pre_process(double ** x_temp, double ** x, double ** d_A, double ** d_B, double * A, double * B);
+float run_process(int num_threads, double* d_a, double* d_b, double* x_temp, double* x);
+void serial_sum_temp(double* x_temp, double* result);
 
-const int N = 10;
 
-void displayVector(float A[N]);
-void displayFlat(float A[N * N]);
-bool inverse(float A[N][N], float* inverse);
-void adjoint(float A[N][N], float adj[N][N]);
-float determinant(float A[N][N], int n);
-void getCofactor(float A[N][N], float temp[N][N], int p, int q, int n);
-void subtract(float* output, float A[N], float B[N]);
-void display(float A[N][N]);
+const int N = 1024;
+
+void displayVector(double A[N]);
+void displayFlat(double A[N * N]);
+bool inverse(double A[N][N], double* inverse);
+void adjoint(double A[N][N], double adj[N][N]);
+double determinant(double A[N][N], int n);
+void getCofactor(double A[N][N], double temp[N][N], int p, int q, int n);
+void subtract(double* output, double A[N], double B[N]);
+void display(double A[N][N]);
+
 
 int main()
 {
-	float* x_temp, * x, * d_A, * d_B;
-	float* difference = (float*)malloc(N * sizeof(float));
+	double* x_temp, * x, * d_A, * d_B;
+	double* difference = (double*)malloc(N * sizeof(double));
 
 	if (N == 10)
 	{
-		float* A_orig = (float*)malloc(N * N * sizeof(float));
-		float* d_orig_A;
-		float inv_A[N * N];
-		int number_of_threads = 2048;
-		float time_spent_inverse, time_spent_multiplication;
+		//NOTE: PLEASE COMMENT OUT CODE IN THIS SECTION IF RUNNING N>10
 
-		clock_t begin = clock();
-		inverse(A_10, inv_A);
-		time_spent_inverse = (float)(clock() - begin) / CLOCKS_PER_SEC;
+		//double* A_orig = (double*)malloc(N * N * sizeof(double));
+		//double* d_orig_A;
 
-		cout << "The input matrix is: \n";
-		display(A_10);
-		cout << "\nThe inverse is: \n";
-		displayFlat(inv_A);
-		printf("\nTime Spent Inversing matrix: %d seconds \n", time_spent_inverse);
-
-		size_t matrixAsize = N * N * sizeof(float);
-		cudaMalloc((void**) &d_orig_A, matrixAsize);
-
-		// Flatten A
-		for (int i = 0; i < N; i++) {
-			for (int j = 0; j < N; j++) {
-				// change argument here for different weight matrices
-				A_orig[i * N + j] = A_10[i][j];
-			}
-		}
-
-		cudaMemcpy(d_orig_A, A_orig, matrixAsize, cudaMemcpyHostToDevice);
-		pre_process(&x_temp, &x, &d_A, &d_B, inv_A, b_10);
-
-		begin = clock();
-		// inv_A * b
-		run_process(number_of_threads, d_A, d_B, x_temp, x);
-		cout << "X is: \n";
-		displayVector(x);
-		// A * x, x now holds b 
-		run_process(number_of_threads, d_orig_A, x, x_temp, x);
-		time_spent_multiplication = (float)(clock() - begin) / CLOCKS_PER_SEC;
-
-		subtract(difference, x, b_10);
-		displayVector(difference);
-	}
-	else
-	{
-		//float* b_provided = b_512;
-		//float* a_provided = A_512;
-		//float* x_provided = X_512;
-
-		//pre_process(&x_temp, &x, &d_A, &d_B, a_provided, x_provided);
-
-		//if (N != 1024)
-		//{
-		//	// RUN FOR ALL OTHER SIZES WHERE TIMING INFO NOT NEEDED
-		//	int number_of_threads = 2048;
-		//	run_process(number_of_threads, d_A, d_B, x_temp, x);
-		//	cout << "\nA*x is: \n";
-		//	displayVector(x);
-		//	subtract(difference, x, b_provided);
-		//	cout << "\nA*x-B is: \n";
-		//	displayVector(difference);
-		//}
-		//else
-		//{
-		//	// ONLY RUN FOR 1024X1024 matrix
-		//	 //Run through matrix multiplication with numthreads 
-		//	int max_thread_power = 11;
-		//	printf("\nMatrix Dimension: %d \n", N);
-		//	for (int i = 0; i <= max_thread_power; i++) {
-		//		int number_of_threads = pow(2, i);
-		//		float duration = run_process(number_of_threads, d_A, d_B, x_temp, x);
-		//		cout << "\n Number of threads: " << number_of_threads << "\t Run time: " << scientific << duration;
-		//		cout << "\nX is: \n";
-		//		displayVector(x);
+		//// Flatten A
+		//for (int i = 0; i < N; i++) {
+		//	for (int j = 0; j < N; j++) {
+		//		// change argument here for different weight matrices
+		//		A_orig[i * N + j] = A_10[i][j];
 		//	}
 		//}
 
+		//double inv_A[N * N];
+		//int number_of_threads = 128;
+		//float time_spent_inverse, time_spent_multiplication;
+
+		//size_t matrixAsize = N * N * sizeof(double);
+		//cudaMalloc((void**)& d_orig_A, matrixAsize);
+		//cudaMemcpy(d_orig_A, A_orig, matrixAsize, cudaMemcpyHostToDevice);
+
+		//clock_t begin = clock();
+		//inverse(A_10, inv_A);
+		//time_spent_inverse = (float)(clock() - begin) / CLOCKS_PER_SEC;
+
+		//cout << "The input matrix is: \n";
+		//display(A_10);
+		//cout << "\nThe inverse is: \n";
+		//displayFlat(inv_A);
+		//printf("\nTime Spent Inversing matrix: %d seconds \n", time_spent_inverse);
+
+		//pre_process(&x_temp, &x, &d_A, &d_B, inv_A, b_10);
+
+		//// inv_A * b
+		//run_process(number_of_threads, d_A, d_B, x_temp, x);
+		//cout << "X is: \n";
+		//displayVector(x);
+		//cout << endl;
+
+		//// A * x, x now holds b 
+		//run_process(number_of_threads, d_orig_A, x, x_temp, x);
+
+		//subtract(difference, x, b_10);
+		//cout << "A*x-B is: \n";
+		//displayVector(difference);
 	}
+	else
+	{
+		double* b_provided = b_1024;
+		double* a_provided = A_1024;
+		double* x_provided = X_1024;
+
+		pre_process(&x_temp, &x, &d_A, &d_B, a_provided, x_provided);
+		cout << "Matrix Dimension: " << N << endl;
+
+		if (N != 1024)
+		{
+			// RUN FOR ALL OTHER SIZES WHERE TIMING INFO NOT NEEDED
+			int number_of_threads = 2048;
+			run_process(number_of_threads, d_A, d_B, x_temp, x);
+			cout << "\nb = A*X is: \n";
+			displayVector(x);
+			subtract(difference, x, b_provided);
+			cout << "\nb-B is: \n";
+			displayVector(difference);
+		}
+		else
+		{
+			// ONLY RUN FOR 1024X1024 matrix
+			 //Run through matrix multiplication with numthreads 
+			int max_thread_power = 11;
+			for (int i = 0; i <= max_thread_power; i++) {
+				int number_of_threads = pow(2, i);
+				float duration = run_process(number_of_threads, d_A, d_B, x_temp, x);
+				cout << "\n Number of threads: " << number_of_threads << "\t Run time: " << scientific << duration;
+			}
+			cout << "\nb = A*X is: \n";
+			displayVector(x);
+			subtract(difference, x, b_provided);
+			cout << "\nb-B is: \n";
+			displayVector(difference);
+		}
+	}
+
 	free(difference);
 	cudaFree(x_temp);
 	cudaFree(x);
@@ -131,7 +140,7 @@ int main()
 	return 0;
 }
 
-float run_process(int num_threads, float* d_a, float* d_b, float* x_temp, float* x)
+float run_process(int num_threads, double* d_a, double* d_b, double* x_temp, double* x)
 {
 	int block_number = pow(2, num_threads / 1024);
 	int threads_per_block = num_threads / block_number;
@@ -141,9 +150,12 @@ float run_process(int num_threads, float* d_a, float* d_b, float* x_temp, float*
 
 	gpu_process << <block_number, threads_per_block >> > (x_temp, d_a, d_b, threads_per_block, block_number);
 	cudaDeviceSynchronize();
-	sum_temp << <block_number, threads_per_block >> > (x_temp, x, threads_per_block, block_number);
-	//serial_sum_temp(x_temp, x);
+	//sum_temp << <block_number, threads_per_block >> > (x_temp, x, threads_per_block, block_number);
+	serial_sum_temp(x_temp, x);
 	cudaDeviceSynchronize();
+
+	//cout << "X_temp is" << endl;
+	//displayFlat(x_temp);
 
 	clock_t end = clock();
 	time_spent += (float)(end - begin) / CLOCKS_PER_SEC;
@@ -152,7 +164,7 @@ float run_process(int num_threads, float* d_a, float* d_b, float* x_temp, float*
 
 // Intermediate step in matrix multiplication of d_a x d_b.
 // Multiplications are done and stored into x_temp
-__global__ void gpu_process(float* x_temp, float* d_a, float* d_b, int num_threads, int num_blocks)
+__global__ void gpu_process(double* x_temp, double* d_a, double* d_b, int num_threads, int num_blocks)
 {
 	int start, end;
 
@@ -173,7 +185,7 @@ __global__ void gpu_process(float* x_temp, float* d_a, float* d_b, int num_threa
 	}
 }
 
-__global__ void sum_temp(float* x_temp, float* result, int num_threads, int num_blocks)
+__global__ void sum_temp(double* x_temp, double* result, int num_threads, int num_blocks)
 {
 	// reinit results
 	for (int j = 0; j < N; j++)
@@ -206,13 +218,13 @@ __global__ void sum_temp(float* x_temp, float* result, int num_threads, int num_
 // d_A holds gpu version of A, d_B for B
 // x_temp holds intermediate multiplications. Shared Mem. 
 // x holds final vector result
-void pre_process(float** x_temp, float** x, float** d_A, float** d_B, float* A, float* B)
+void pre_process(double ** x_temp, double ** x, double ** d_A, double ** d_B, double * A, double * B)
 {
 	unsigned error;
 
 	// allocate and copy into device
-	size_t matrixAsize = (size_t)(N * N * sizeof(float));
-	size_t matrixBsize = (size_t)(N * sizeof(float));
+	size_t matrixAsize = (size_t)(N * N * sizeof(double));
+	size_t matrixBsize = (size_t)(N * sizeof(double));
 
 	cudaMalloc((void**) & *d_A, matrixAsize);
 	cudaMalloc((void**) & *d_B, matrixBsize);
@@ -225,16 +237,16 @@ void pre_process(float** x_temp, float** x, float** d_A, float** d_B, float* A, 
 	cudaMallocManaged(x, matrixBsize);
 }
 
-void subtract(float* output, float A[N], float B[N])
+void subtract(double* output, double  A[N], double  B[N])
 {
 	for (int i = 0; i < N; i++) {
 		output[i] = A[i] - B[i];
 	}
 }
 
-bool inverse(float A[N][N], float* inverse)
+bool inverse(double  A[N][N], double* inverse)
 {
-	float det = determinant(A, N);
+	double det = determinant(A, N);
 	if (det == 0)
 	{
 		cout << "No inverse";
@@ -242,18 +254,18 @@ bool inverse(float A[N][N], float* inverse)
 	}
 
 	// Find adjoint 
-	float adj[N][N];
+	double adj[N][N];
 	adjoint(A, adj);
 
 	// Find Inverse using formula "inverse(A) = adj(A)/det(A)" 
 	for (int i = 0; i < N; i++)
 		for (int j = 0; j < N; j++)
-			inverse[i * N + j] = adj[i][j] / float(det);
+			inverse[i * N + j] = adj[i][j] / det;
 
 	return true;
 }
 
-void getCofactor(float A[N][N], float temp[N][N], int p, int q, int n)
+void getCofactor(double A[N][N], double temp[N][N], int p, int q, int n)
 {
 	int i = 0, j = 0;
 
@@ -280,15 +292,15 @@ void getCofactor(float A[N][N], float temp[N][N], int p, int q, int n)
 	}
 }
 
-float determinant(float A[N][N], int n)
+double determinant(double A[N][N], int n)
 {
-	float D = 0; // Initialize result 
+	double D = 0; // Initialize result 
 
 	//  Base case : if matrix contains single element 
 	if (n == 1)
 		return A[0][0];
 
-	float temp[N][N]; // To store cofactors 
+	double temp[N][N]; // To store cofactors 
 
 	int sign = 1;  // To store sign multiplier 
 
@@ -306,7 +318,7 @@ float determinant(float A[N][N], int n)
 	return D;
 }
 
-void adjoint(float A[N][N], float adj[N][N])
+void adjoint(double A[N][N], double adj[N][N])
 {
 	if (N == 1)
 	{
@@ -316,7 +328,7 @@ void adjoint(float A[N][N], float adj[N][N])
 
 	// temp is used to store cofactors of A[][] 
 	int sign = 1;
-	float temp[N][N];
+	double temp[N][N];
 
 	for (int i = 0; i < N; i++)
 	{
@@ -336,7 +348,7 @@ void adjoint(float A[N][N], float adj[N][N])
 	}
 }
 
-void displayFlat(float A[N * N])
+void displayFlat(double A[N * N])
 {
 	for (int i = 0; i < N; i++)
 	{
@@ -346,7 +358,7 @@ void displayFlat(float A[N * N])
 	}
 }
 
-void displayVector(float A[N])
+void displayVector(double A[N])
 {
 	cout.precision(17);
 	for (int i = 0; i < N; i++)
@@ -355,7 +367,7 @@ void displayVector(float A[N])
 	}
 }
 
-void serial_sum_temp(float* x_temp, float* result)
+void serial_sum_temp(double* x_temp, double* result)
 {
 	// reinit results
 	for (int j = 0; j < N; j++)
@@ -372,8 +384,7 @@ void serial_sum_temp(float* x_temp, float* result)
 	}
 }
 
-
-void display(float A[N][N])
+void display(double A[N][N])
 {
 	for (int i = 0; i < N; i++)
 	{
